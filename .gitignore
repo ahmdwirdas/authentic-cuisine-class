@@ -1,0 +1,22 @@
+# Git ignore rules for Authentic Cuisine Class
+
+# Environment files
+.env
+.env.local
+
+# Operating System files
+Thumbs.db
+Desktop.ini
+.DS_Store
+
+# Editor / IDE files
+.idea/
+*.sublime-project
+*.sublime-workspace
+.vscode/*
+!.vscode/launch.json
+
+# Temporary / Log files
+*.log
+scratch/
+test_*.php
