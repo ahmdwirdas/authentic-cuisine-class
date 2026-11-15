@@ -19,19 +19,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         $name = sanitize($_POST['name'] ?? '');
         $description = sanitize($_POST['description'] ?? '');
         $cuisine_type = sanitize($_POST['cuisine_type'] ?? '');
+        $instructor_id = sanitize($_POST['instructor_id'] ?? '');
         $instructor = sanitize($_POST['instructor'] ?? '');
+        if (!empty($instructor_id)) {
+            $instStmt = $pdo->prepare("SELECT name FROM instructors WHERE id = ?");
+            $instStmt->execute([$instructor_id]);
+            $instName = $instStmt->fetchColumn();
+            if ($instName) $instructor = $instName;
+        }
         $schedule = sanitize($_POST['schedule'] ?? '');
         $capacity = (int)($_POST['capacity'] ?? 10);
         $price = (float)($_POST['price'] ?? 0.0);
 
-        if (empty($branch_id) || empty($name) || empty($cuisine_type) || empty($instructor) || empty($schedule)) {
+        if (empty($branch_id) || empty($name) || empty($cuisine_type) || (empty($instructor) && empty($instructor_id)) || empty($schedule)) {
             $message = "Please fill in all required class fields.";
             $message_type = "danger";
         } else {
             $class_id = generate_id('CLS');
-            $stmt = $pdo->prepare("INSERT INTO cuisineclasses (id, branch_id, name, description, cuisine_type, instructor, schedule, capacity, price) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
+            $stmt = $pdo->prepare("INSERT INTO cuisineclasses (id, branch_id, name, description, cuisine_type, instructor_id, instructor, schedule, capacity, price) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
             try {
-                $stmt->execute([$class_id, $branch_id, $name, $description, $cuisine_type, $instructor, $schedule, $capacity, $price]);
+                $stmt->execute([$class_id, $branch_id, $name, $description, $cuisine_type, $instructor_id ?: null, $instructor, $schedule, $capacity, $price]);
                 $message = "New class successfully added: " . htmlspecialchars($name);
             } catch (PDOException $e) {
                 $message = "Error adding class: " . $e->getMessage();
@@ -46,18 +53,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         $name = sanitize($_POST['name'] ?? '');
         $description = sanitize($_POST['description'] ?? '');
         $cuisine_type = sanitize($_POST['cuisine_type'] ?? '');
+        $instructor_id = sanitize($_POST['instructor_id'] ?? '');
         $instructor = sanitize($_POST['instructor'] ?? '');
+        if (!empty($instructor_id)) {
+            $instStmt = $pdo->prepare("SELECT name FROM instructors WHERE id = ?");
+            $instStmt->execute([$instructor_id]);
+            $instName = $instStmt->fetchColumn();
+            if ($instName) $instructor = $instName;
+        }
         $schedule = sanitize($_POST['schedule'] ?? '');
         $capacity = (int)($_POST['capacity'] ?? 10);
         $price = (float)($_POST['price'] ?? 0.0);
 
-        if (empty($class_id) || empty($branch_id) || empty($name) || empty($cuisine_type) || empty($instructor) || empty($schedule)) {
+        if (empty($class_id) || empty($branch_id) || empty($name) || empty($cuisine_type) || (empty($instructor) && empty($instructor_id)) || empty($schedule)) {
             $message = "Please fill in all required fields.";
             $message_type = "danger";
         } else {
-            $stmt = $pdo->prepare("UPDATE cuisineclasses SET branch_id = ?, name = ?, description = ?, cuisine_type = ?, instructor = ?, schedule = ?, capacity = ?, price = ? WHERE id = ?");
+            $stmt = $pdo->prepare("UPDATE cuisineclasses SET branch_id = ?, name = ?, description = ?, cuisine_type = ?, instructor_id = ?, instructor = ?, schedule = ?, capacity = ?, price = ? WHERE id = ?");
             try {
-                $stmt->execute([$branch_id, $name, $description, $cuisine_type, $instructor, $schedule, $capacity, $price, $class_id]);
+                $stmt->execute([$branch_id, $name, $description, $cuisine_type, $instructor_id ?: null, $instructor, $schedule, $capacity, $price, $class_id]);
                 $message = "Class details updated successfully.";
             } catch (PDOException $e) {
                 $message = "Error updating class: " . $e->getMessage();
@@ -240,6 +254,120 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             $message_type = "danger";
         }
     }
+
+    // --- INSTRUCTOR CRUD ---
+    elseif ($action === 'add_instructor') {
+        $name = sanitize($_POST['name'] ?? '');
+        $email = sanitize($_POST['email'] ?? '');
+        $phone = sanitize($_POST['phone'] ?? '');
+        $specialty = sanitize($_POST['specialty'] ?? '');
+        $bio = sanitize($_POST['bio'] ?? '');
+        $status = sanitize($_POST['status'] ?? 'Active');
+
+        if (empty($name) || empty($email) || empty($phone) || empty($specialty)) {
+            $message = "Name, email, phone and culinary specialty are required.";
+            $message_type = "danger";
+        } else {
+            $inst_id = generate_id('INS');
+            $stmt = $pdo->prepare("INSERT INTO instructors (id, name, email, phone, specialty, bio, status) VALUES (?, ?, ?, ?, ?, ?, ?)");
+            try {
+                $stmt->execute([$inst_id, $name, $email, $phone, $specialty, $bio, $status]);
+                $message = "New instructor successfully registered: " . htmlspecialchars($name);
+            } catch (PDOException $e) {
+                $message = "Error registering instructor: " . $e->getMessage();
+                $message_type = "danger";
+            }
+        }
+    }
+
+    elseif ($action === 'edit_instructor') {
+        $inst_id = sanitize($_POST['instructor_id'] ?? '');
+        $name = sanitize($_POST['name'] ?? '');
+        $email = sanitize($_POST['email'] ?? '');
+        $phone = sanitize($_POST['phone'] ?? '');
+        $specialty = sanitize($_POST['specialty'] ?? '');
+        $bio = sanitize($_POST['bio'] ?? '');
+        $status = sanitize($_POST['status'] ?? 'Active');
+
+        if (empty($inst_id) || empty($name) || empty($email) || empty($phone) || empty($specialty)) {
+            $message = "All core instructor details are required.";
+            $message_type = "danger";
+        } else {
+            $stmt = $pdo->prepare("UPDATE instructors SET name = ?, email = ?, phone = ?, specialty = ?, bio = ?, status = ? WHERE id = ?");
+            try {
+                $stmt->execute([$name, $email, $phone, $specialty, $bio, $status, $inst_id]);
+                // Keep classes table instructor text name in sync
+                $pdo->prepare("UPDATE cuisineclasses SET instructor = ? WHERE instructor_id = ?")->execute([$name, $inst_id]);
+                $message = "Instructor details updated successfully.";
+            } catch (PDOException $e) {
+                $message = "Error updating instructor: " . $e->getMessage();
+                $message_type = "danger";
+            }
+        }
+    }
+
+    elseif ($action === 'delete_instructor') {
+        $inst_id = sanitize($_POST['instructor_id'] ?? '');
+        $stmt = $pdo->prepare("DELETE FROM instructors WHERE id = ?");
+        try {
+            $stmt->execute([$inst_id]);
+            $pdo->prepare("UPDATE cuisineclasses SET instructor_id = NULL WHERE instructor_id = ?")->execute([$inst_id]);
+            $message = "Instructor successfully deleted.";
+        } catch (PDOException $e) {
+            $message = "Error deleting instructor: " . $e->getMessage();
+            $message_type = "danger";
+        }
+    }
+
+    // --- FEEDBACK REMARK / ACTION PLAN ---
+    elseif ($action === 'save_feedback_remark') {
+        $survey_id = sanitize($_POST['survey_id'] ?? '');
+        $admin_remark = sanitize($_POST['admin_remark'] ?? '');
+
+        if (empty($survey_id)) {
+            $message = "Survey feedback record not specified.";
+            $message_type = "danger";
+        } else {
+            $stmt = $pdo->prepare("UPDATE surveys SET admin_remark = ?, remarked_at = NOW() WHERE id = ?");
+            try {
+                $stmt->execute([$admin_remark, $survey_id]);
+                $message = "Admin action remark saved successfully for feedback #" . htmlspecialchars($survey_id) . "!";
+            } catch (PDOException $e) {
+                $message = "Error saving feedback remark: " . $e->getMessage();
+                $message_type = "danger";
+            }
+        }
+    }
+
+    // --- MANUAL PAYMENT STATUS TOGGLE (ADMIN) ---
+    elseif ($action === 'update_payment_status') {
+        $booking_id = sanitize($_POST['booking_id'] ?? '');
+        $new_status = sanitize($_POST['payment_status'] ?? 'Paid');
+        $stmt = $pdo->prepare("UPDATE bookings SET payment_status = ? WHERE id = ?");
+        try {
+            $stmt->execute([$new_status, $booking_id]);
+            if ($new_status === 'Paid') {
+                // Check if payment row exists
+                $chk = $pdo->prepare("SELECT id FROM payments WHERE booking_id = ?");
+                $chk->execute([$booking_id]);
+                if (!$chk->fetch()) {
+                    $bData = $pdo->prepare("SELECT b.customer_id, c.price FROM bookings b JOIN cuisineclasses c ON b.class_id = c.id WHERE b.id = ?");
+                    $bData->execute([$booking_id]);
+                    $bd = $bData->fetch();
+                    if ($bd) {
+                        $payId = generate_id('PAY');
+                        $txRef = 'TXN-' . strtoupper(substr(uniqid(), 7));
+                        $pdo->prepare("INSERT INTO payments (id, booking_id, customer_id, amount, payment_method, status, transaction_ref, paid_at) VALUES (?, ?, ?, ?, 'Cash / Admin Entry', 'Paid', ?, NOW())")
+                            ->execute([$payId, $booking_id, $bd['customer_id'], $bd['price'], $txRef]);
+                    }
+                }
+            }
+            $message = "Booking payment status updated to " . htmlspecialchars($new_status) . ".";
+        } catch (PDOException $e) {
+            $message = "Error updating payment status: " . $e->getMessage();
+            $message_type = "danger";
+        }
+    }
 }
 
 // ==========================================
@@ -285,7 +413,7 @@ $filter_branch = sanitize($_GET['b_id'] ?? '');
 $filter_status = sanitize($_GET['status'] ?? '');
 $search_query = sanitize($_GET['search'] ?? '');
 
-$registry_sql = "SELECT b.id as booking_id, b.booking_date, b.status, c.name as customer_name, c.email as customer_email, cl.name as class_name, cl.cuisine_type, cl.schedule, br.name as branch_name 
+$registry_sql = "SELECT b.id as booking_id, b.booking_date, b.status, b.payment_status, c.name as customer_name, c.email as customer_email, cl.name as class_name, cl.cuisine_type, cl.schedule, cl.price, br.name as branch_name 
                  FROM bookings b 
                  JOIN customers c ON b.customer_id = c.id 
                  JOIN cuisineclasses cl ON b.class_id = cl.id 
@@ -325,9 +453,10 @@ $question_aggregates = $pdo->query("
     GROUP BY q.id
 ")->fetchAll();
 
-// Fetch text answers for Q-006 or any textual feedback
+// Fetch text answers for Q-006 or any textual feedback with admin remarks
 $text_feedbacks = $pdo->query("
-    SELECT s.response, s.submitted_at, c.name as customer_name, cl.name as class_name, br.name as branch_name 
+    SELECT s.id as survey_id, s.response, s.admin_remark, s.remarked_at, s.submitted_at, 
+           c.name as customer_name, c.email as customer_email, cl.name as class_name, br.name as branch_name 
     FROM surveys s 
     JOIN customers c ON s.customer_id = c.id 
     JOIN bookings b ON s.booking_id = b.id 
@@ -349,6 +478,32 @@ $cuisine_popularity = $pdo->query("
 // Inquiries list and stats
 $all_inquiries = $pdo->query("SELECT * FROM inquiries ORDER BY submitted_at DESC")->fetchAll();
 $new_inquiries_count = $pdo->query("SELECT COUNT(*) FROM inquiries WHERE status = 'New'")->fetchColumn();
+
+// Instructors list & stats
+$all_instructors = $pdo->query("
+    SELECT i.*, 
+           (SELECT COUNT(*) FROM cuisineclasses WHERE instructor_id = i.id OR instructor = i.name) as class_count
+    FROM instructors i 
+    ORDER BY i.name ASC
+")->fetchAll();
+
+// Payments summary list & stats
+$total_revenue_paid = $pdo->query("SELECT COALESCE(SUM(amount), 0) FROM payments WHERE status = 'Paid'")->fetchColumn();
+$recent_payments = $pdo->query("
+    SELECT p.*, c.name as customer_name, cl.name as class_name 
+    FROM payments p 
+    JOIN customers c ON p.customer_id = c.id 
+    JOIN bookings b ON p.booking_id = b.id 
+    JOIN cuisineclasses cl ON b.class_id = cl.id 
+    ORDER BY p.paid_at DESC LIMIT 10
+")->fetchAll();
+
+// Distinct months available for reporting filter
+$report_months = $pdo->query("
+    SELECT DISTINCT DATE_FORMAT(booking_date, '%Y-%m') as ym 
+    FROM bookings 
+    ORDER BY ym DESC
+")->fetchAll(PDO::FETCH_COLUMN);
 
 // Populate lists for forms
 $all_branches = $pdo->query("SELECT * FROM branches ORDER BY name")->fetchAll();
@@ -454,14 +609,20 @@ $all_questions = $pdo->query("SELECT * FROM questions ORDER BY id")->fetchAll();
                         <li class="sidebar-nav-link" onclick="switchSection('feedback', this)">
                             <span>✍️</span> Survey Feedback
                         </li>
+                        <li class="sidebar-nav-link" onclick="switchSection('instructors', this)">
+                            <span>👨‍🍳</span> Manage Instructors
+                        </li>
                         <li class="sidebar-nav-link" onclick="switchSection('inquiries', this)">
                             <span>📬</span> Chef Inquiries <?php if ($new_inquiries_count > 0): ?><span class="badge badge-warning" style="margin-left:0.5rem; font-size:0.7rem;"><?php echo $new_inquiries_count; ?></span><?php endif; ?>
+                        </li>
+                        <li class="sidebar-nav-link" onclick="switchSection('payments', this)">
+                            <span>💳</span> Payment History
                         </li>
                         <li class="sidebar-nav-link" onclick="switchSection('crud', this)">
                             <span>⚙️</span> Database CRUD
                         </li>
                         <li class="sidebar-nav-link" onclick="switchSection('reports', this)">
-                            <span>📈</span> Analytical Reports
+                            <span>📈</span> Generate Reports & PDF
                         </li>
                     </ul>
                 </div>
@@ -687,17 +848,46 @@ $all_questions = $pdo->query("SELECT * FROM questions ORDER BY id")->fetchAll();
                     <?php else: ?>
                         <div style="display: flex; flex-direction: column; gap: 1.25rem;">
                             <?php foreach ($text_feedbacks as $fb): ?>
-                                <div class="card" style="padding: 1.5rem; border-color: rgba(255,255,255,0.05); hover: border-color: var(--border-gold)">
+                                <div class="card" style="padding: 1.5rem; border-color: rgba(255,255,255,0.08);">
                                     <div class="flex-between mb-2" style="font-size: 0.8rem; border-bottom: 1px solid var(--border-color); padding-bottom: 0.5rem;">
                                         <div>
                                             <strong><?php echo htmlspecialchars($fb['customer_name']); ?></strong>
-                                            <span class="text-dim">on</span> 
-                                            <span style="color:#ffffff;"><?php echo htmlspecialchars($fb['class_name']); ?></span> 
+                                            <span class="text-dim">·</span>
+                                            <span style="color:var(--text-secondary); font-size:0.75rem;"><?php echo htmlspecialchars($fb['customer_email']); ?></span>
+                                            <span class="text-dim">on</span>
+                                            <span style="color:#ffffff;"><?php echo htmlspecialchars($fb['class_name']); ?></span>
                                             <span class="text-dim">(<?php echo htmlspecialchars($fb['branch_name']); ?>)</span>
                                         </div>
                                         <span class="text-dim"><?php echo date('d M Y, h:i A', strtotime($fb['submitted_at'])); ?></span>
                                     </div>
-                                    <p style="font-style: italic; font-size: 0.95rem; color:#f3f4f6;">"<?php echo htmlspecialchars($fb['response']); ?>"</p>
+                                    <p style="font-style: italic; font-size: 0.95rem; color:#f3f4f6; margin-bottom:1rem;">"<?php echo htmlspecialchars($fb['response']); ?>"</p>
+
+                                    <?php if (!empty($fb['admin_remark'])): ?>
+                                        <div style="background:rgba(212,175,55,0.08); border-left:3px solid var(--accent-gold); padding:0.75rem 1rem; border-radius:0 6px 6px 0; margin-bottom:0.75rem;">
+                                            <div style="font-size:0.75rem; color:var(--accent-gold-light); font-weight:600; margin-bottom:0.25rem;">
+                                                ✅ Admin Action / Remark
+                                                <span class="text-dim" style="font-weight:normal; margin-left:0.5rem;">(<?php echo date('d M Y, h:i A', strtotime($fb['remarked_at'])); ?>)</span>
+                                            </div>
+                                            <p style="font-size:0.9rem; color:#f3f4f6; margin:0;"><?php echo nl2br(htmlspecialchars($fb['admin_remark'])); ?></p>
+                                        </div>
+                                    <?php endif; ?>
+
+                                    <form method="POST" action="admin-dashboard.php" style="margin-top:0.5rem;">
+                                        <input type="hidden" name="action" value="save_feedback_remark">
+                                        <input type="hidden" name="survey_id" value="<?php echo $fb['survey_id']; ?>">
+                                        <div style="display:flex; gap:0.75rem; align-items:flex-end;">
+                                            <div style="flex:1;">
+                                                <label style="font-size:0.75rem; color:var(--text-secondary); margin-bottom:0.25rem; display:block;">
+                                                    <?php echo !empty($fb['admin_remark']) ? '✏️ Update Action / Remark' : '📝 Add Action / Remark'; ?>
+                                                </label>
+                                                <textarea name="admin_remark" class="form-control" rows="2" placeholder="Describe follow-up action taken for this feedback..."
+                                                    style="font-size:0.85rem; resize:vertical;"><?php echo htmlspecialchars($fb['admin_remark'] ?? ''); ?></textarea>
+                                            </div>
+                                            <button type="submit" class="btn btn-gold-outline btn-sm" style="white-space:nowrap; padding:0.5rem 1rem;">
+                                                💾 Save Remark
+                                            </button>
+                                        </div>
+                                    </form>
                                 </div>
                             <?php endforeach; ?>
                         </div>
@@ -779,6 +969,247 @@ $all_questions = $pdo->query("SELECT * FROM questions ORDER BY id")->fetchAll();
                             </table>
                         </div>
                     <?php endif; ?>
+                </section>
+
+                <!-- SECTION: MANAGE INSTRUCTORS -->
+                <section id="section-instructors" class="dashboard-section" style="display:none;">
+                    <div class="flex-between mb-2">
+                        <div>
+                            <span class="section-subtitle">Academy Staff</span>
+                            <h2>Manage Culinary Instructors</h2>
+                        </div>
+                        <span class="text-dim"><?php echo count($all_instructors); ?> instructors registered</span>
+                    </div>
+                    <p class="text-dim mb-4" style="font-size:0.95rem;">Register new chef instructors, manage their profiles and link them to cuisine classes.</p>
+
+                    <div class="grid-half">
+                        <!-- Left: Instructor List -->
+                        <div class="table-responsive" style="max-height:600px; overflow-y:auto;">
+                            <?php if (empty($all_instructors)): ?>
+                                <div class="card text-center" style="padding:3rem;">
+                                    <p class="text-dim">No instructors registered yet.</p>
+                                </div>
+                            <?php else: ?>
+                                <table>
+                                    <thead>
+                                        <tr>
+                                            <th>Instructor</th>
+                                            <th>Specialty</th>
+                                            <th class="text-center">Classes</th>
+                                            <th>Status</th>
+                                            <th class="text-right">Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <?php foreach ($all_instructors as $ins): ?>
+                                            <tr>
+                                                <td>
+                                                    <div style="font-weight:600; color:#ffffff;"><?php echo htmlspecialchars($ins['name']); ?></div>
+                                                    <div class="text-dim" style="font-size:0.75rem;"><?php echo htmlspecialchars($ins['email']); ?></div>
+                                                    <div class="text-dim" style="font-size:0.75rem;">📞 <?php echo htmlspecialchars($ins['phone']); ?></div>
+                                                </td>
+                                                <td style="font-size:0.85rem;">
+                                                    <span class="class-type" style="font-size:0.7rem;"><?php echo htmlspecialchars($ins['specialty']); ?></span>
+                                                </td>
+                                                <td class="text-center">
+                                                    <span class="badge badge-info" style="font-size:0.7rem;"><?php echo $ins['class_count']; ?></span>
+                                                </td>
+                                                <td>
+                                                    <span class="badge badge-<?php echo $ins['status'] === 'Active' ? 'success' : 'danger'; ?>" style="font-size:0.7rem;">
+                                                        <?php echo $ins['status']; ?>
+                                                    </span>
+                                                </td>
+                                                <td class="text-right">
+                                                    <button class="btn btn-gold-outline btn-sm" style="margin-right:0.25rem;"
+                                                        onclick="populateEditInstructor(<?php echo htmlspecialchars(json_encode($ins)); ?>)">Edit</button>
+                                                    <form method="POST" action="admin-dashboard.php" style="display:inline-block;"
+                                                        onsubmit="return confirm('Delete instructor <?php echo htmlspecialchars(addslashes($ins['name'])); ?>?');">
+                                                        <input type="hidden" name="action" value="delete_instructor">
+                                                        <input type="hidden" name="instructor_id" value="<?php echo $ins['id']; ?>">
+                                                        <button type="submit" class="btn btn-danger btn-sm">Delete</button>
+                                                    </form>
+                                                </td>
+                                            </tr>
+                                        <?php endforeach; ?>
+                                    </tbody>
+                                </table>
+                            <?php endif; ?>
+                        </div>
+
+                        <!-- Right: Add / Edit Form -->
+                        <div class="card" style="padding:1.5rem;">
+                            <h3 id="inst-form-title" class="mb-3">Register New Instructor</h3>
+                            <form method="POST" action="admin-dashboard.php" id="inst-form">
+                                <input type="hidden" name="action" value="add_instructor" id="inst-form-action">
+                                <input type="hidden" name="instructor_id" id="form-inst-id">
+
+                                <div class="form-grid">
+                                    <div class="form-group form-grid-full">
+                                        <label for="f_inst_name">Full Name</label>
+                                        <input type="text" name="name" id="f_inst_name" class="form-control" required placeholder="e.g. Chef Marcus Lim">
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="f_inst_email">Email Address</label>
+                                        <input type="email" name="email" id="f_inst_email" class="form-control" required placeholder="chef@example.com">
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="f_inst_phone">Phone Number</label>
+                                        <input type="text" name="phone" id="f_inst_phone" class="form-control" required placeholder="+60 12-345 6789">
+                                    </div>
+                                    <div class="form-group form-grid-full">
+                                        <label for="f_inst_specialty">Culinary Specialty</label>
+                                        <select name="specialty" id="f_inst_specialty" class="form-control" required>
+                                            <option value="">Select specialty...</option>
+                                            <option value="Haute Cuisine">Haute Cuisine</option>
+                                            <option value="Vegetarian Cuisine">Vegetarian Cuisine</option>
+                                            <option value="Fusion Cuisine">Fusion Cuisine</option>
+                                            <option value="Novella Cuisine">Novella Cuisine</option>
+                                            <option value="Pastry & Desserts">Pastry & Desserts</option>
+                                            <option value="Traditional Malay">Traditional Malay</option>
+                                            <option value="Multi-Cuisine">Multi-Cuisine</option>
+                                        </select>
+                                    </div>
+                                    <div class="form-group form-grid-full">
+                                        <label for="f_inst_bio">Bio / Profile</label>
+                                        <textarea name="bio" id="f_inst_bio" class="form-control" rows="3"
+                                            placeholder="Brief background, years of experience, awards..."></textarea>
+                                    </div>
+                                    <div class="form-group form-grid-full">
+                                        <label for="f_inst_status">Status</label>
+                                        <select name="status" id="f_inst_status" class="form-control">
+                                            <option value="Active">Active</option>
+                                            <option value="Inactive">Inactive</option>
+                                        </select>
+                                    </div>
+                                </div>
+
+                                <div class="flex-between mt-3" style="gap:1rem;">
+                                    <button type="button" class="btn btn-secondary" onclick="resetInstructorForm()" style="width:35%;">Reset</button>
+                                    <button type="submit" class="btn btn-primary" id="inst-submit-btn" style="width:65%;">Register Instructor</button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- SECTION: PAYMENT HISTORY -->
+                <section id="section-payments" class="dashboard-section" style="display:none;">
+                    <div class="flex-between mb-2">
+                        <div>
+                            <span class="section-subtitle">Financial Records</span>
+                            <h2>Payment History & Revenue</h2>
+                        </div>
+                        <div class="stat-card" style="padding:0.75rem 1.5rem; min-width:auto;">
+                            <span class="stat-label" style="font-size:0.7rem;">Total Revenue (Paid)</span>
+                            <span class="stat-value" style="font-size:1.5rem; color:var(--accent-gold-light);">RM <?php echo number_format($total_revenue_paid, 2); ?></span>
+                        </div>
+                    </div>
+                    <p class="text-dim mb-4" style="font-size:0.95rem;">View all customer payment transactions. Manually toggle payment status for cash or offline payments.</p>
+
+                    <!-- Recent Payments Table -->
+                    <h3 class="mb-3">Recent Payment Transactions</h3>
+                    <?php if (empty($recent_payments)): ?>
+                        <div class="card text-center" style="padding:4rem 2rem;">
+                            <p class="text-dim">No payment records found yet.</p>
+                        </div>
+                    <?php else: ?>
+                        <div class="table-responsive">
+                            <table style="font-size:0.85rem;">
+                                <thead>
+                                    <tr>
+                                        <th>Payment ID</th>
+                                        <th>Transaction Ref</th>
+                                        <th>Customer</th>
+                                        <th>Class</th>
+                                        <th class="text-right">Amount</th>
+                                        <th>Method</th>
+                                        <th>Status</th>
+                                        <th>Date Paid</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <?php foreach ($recent_payments as $pay): ?>
+                                        <tr>
+                                            <td style="font-family:monospace; font-weight:600; color:var(--accent-gold-light); font-size:0.8rem;">
+                                                <?php echo htmlspecialchars($pay['id']); ?>
+                                            </td>
+                                            <td style="font-family:monospace; font-size:0.8rem; color:var(--text-secondary);">
+                                                <?php echo htmlspecialchars($pay['transaction_ref']); ?>
+                                            </td>
+                                            <td style="font-weight:600; color:#ffffff;"><?php echo htmlspecialchars($pay['customer_name']); ?></td>
+                                            <td style="color:var(--text-secondary);"><?php echo htmlspecialchars($pay['class_name']); ?></td>
+                                            <td class="text-right" style="font-weight:600; color:var(--accent-gold-light);">
+                                                RM <?php echo number_format($pay['amount'], 2); ?>
+                                            </td>
+                                            <td style="font-size:0.8rem;"><?php echo htmlspecialchars($pay['payment_method'] ?? '—'); ?></td>
+                                            <td>
+                                                <span class="badge badge-<?php echo $pay['status'] === 'Paid' ? 'success' : 'warning'; ?>" style="font-size:0.7rem;">
+                                                    <?php echo $pay['status']; ?>
+                                                </span>
+                                            </td>
+                                            <td style="font-size:0.8rem; color:var(--text-secondary);">
+                                                <?php echo $pay['paid_at'] ? date('d M Y, h:i A', strtotime($pay['paid_at'])) : '—'; ?>
+                                            </td>
+                                        </tr>
+                                    <?php endforeach; ?>
+                                </tbody>
+                            </table>
+                        </div>
+                    <?php endif; ?>
+
+                    <!-- Booking Registry with Payment Status Toggle -->
+                    <h3 class="mb-3" style="margin-top:2.5rem;">Booking Payment Status Management</h3>
+                    <p class="text-dim mb-3" style="font-size:0.85rem;">Toggle payment status for each confirmed booking. Marking Paid auto-creates a payment record.</p>
+                    <div class="table-responsive">
+                        <table style="font-size:0.85rem;">
+                            <thead>
+                                <tr>
+                                    <th>Booking ID</th>
+                                    <th>Customer</th>
+                                    <th>Class</th>
+                                    <th class="text-right">Price</th>
+                                    <th>Booking Status</th>
+                                    <th>Payment</th>
+                                    <th class="text-right">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <?php foreach ($booking_registry as $reg): ?>
+                                    <tr>
+                                        <td style="font-family:monospace; font-size:0.8rem;"><?php echo $reg['booking_id']; ?></td>
+                                        <td>
+                                            <div style="font-weight:600; color:#fff;"><?php echo htmlspecialchars($reg['customer_name']); ?></div>
+                                            <div class="text-dim" style="font-size:0.75rem;"><?php echo htmlspecialchars($reg['customer_email']); ?></div>
+                                        </td>
+                                        <td><?php echo htmlspecialchars($reg['class_name']); ?></td>
+                                        <td class="text-right" style="font-weight:600; color:var(--accent-gold-light);">RM <?php echo number_format($reg['price'], 2); ?></td>
+                                        <td>
+                                            <span class="badge badge-<?php echo $reg['status'] === 'Confirmed' ? 'success' : 'danger'; ?>" style="font-size:0.7rem;">
+                                                <?php echo $reg['status']; ?>
+                                            </span>
+                                        </td>
+                                        <td>
+                                            <span class="badge badge-<?php echo ($reg['payment_status'] ?? 'Unpaid') === 'Paid' ? 'success' : 'warning'; ?>" style="font-size:0.7rem;">
+                                                <?php echo $reg['payment_status'] ?? 'Unpaid'; ?>
+                                            </span>
+                                        </td>
+                                        <td class="text-right">
+                                            <form method="POST" action="admin-dashboard.php" style="display:inline-flex; gap:0.25rem; align-items:center;">
+                                                <input type="hidden" name="action" value="update_payment_status">
+                                                <input type="hidden" name="booking_id" value="<?php echo $reg['booking_id']; ?>">
+                                                <select name="payment_status" class="form-control"
+                                                    style="font-size:0.75rem; padding:0.2rem 0.4rem; display:inline-block; width:auto; height:auto;">
+                                                    <option value="Unpaid" <?php echo ($reg['payment_status'] ?? 'Unpaid') === 'Unpaid' ? 'selected' : ''; ?>>Unpaid</option>
+                                                    <option value="Paid" <?php echo ($reg['payment_status'] ?? '') === 'Paid' ? 'selected' : ''; ?>>Paid</option>
+                                                </select>
+                                                <button type="submit" class="btn btn-gold-outline btn-sm">Set</button>
+                                            </form>
+                                        </td>
+                                    </tr>
+                                <?php endforeach; ?>
+                            </tbody>
+                        </table>
+                    </div>
                 </section>
 
                 <!-- SECTION 4: CRUD MANAGEMENT -->
@@ -870,8 +1301,22 @@ $all_questions = $pdo->query("SELECT * FROM questions ORDER BY id")->fetchAll();
                                     <div class="form-grid">
                                         <div class="form-group">
                                             <label for="f_class_chef">Instructor / Chef</label>
-                                            <input type="text" name="instructor" id="f_class_chef" class="form-control" required placeholder="e.g. Chef Marcus">
+                                            <select name="instructor_id" id="f_class_inst_id" class="form-control" onchange="syncInstructorName(this)">
+                                                <option value="">— or type manually below —</option>
+                                                <?php foreach ($all_instructors as $ins): ?>
+                                                    <?php if ($ins['status'] === 'Active'): ?>
+                                                    <option value="<?php echo $ins['id']; ?>" data-name="<?php echo htmlspecialchars($ins['name']); ?>">
+                                                        <?php echo htmlspecialchars($ins['name']); ?> (<?php echo $ins['specialty']; ?>)
+                                                    </option>
+                                                    <?php endif; ?>
+                                                <?php endforeach; ?>
+                                            </select>
                                         </div>
+                                        <div class="form-group">
+                                            <label for="f_class_chef">Manual Chef Name <span class="text-dim" style="font-size:0.75rem;">(if not in roster)</span></label>
+                                            <input type="text" name="instructor" id="f_class_chef" class="form-control" placeholder="e.g. Chef Marcus">
+                                        </div>
+                                    </div>
                                         <div class="form-group">
                                             <label for="f_class_sched">Schedule (Date & Time)</label>
                                             <input type="datetime-local" name="schedule" id="f_class_sched" class="form-control" required>
@@ -1037,8 +1482,48 @@ $all_questions = $pdo->query("SELECT * FROM questions ORDER BY id")->fetchAll();
 
                 <!-- SECTION 5: ANALYTICAL REPORTS -->
                 <section id="section-reports" class="dashboard-section" style="display:none;">
-                    <h2 class="mb-2">Analytical Insights Dashboard</h2>
-                    <p class="text-dim mb-4" style="font-size:0.95rem;">Review visual analytics regarding class bookings and student feedback metrics across branches.</p>
+                    <h2 class="mb-2">Analytical Insights & PDF Reports</h2>
+                    <p class="text-dim mb-4" style="font-size:0.95rem;">Review visual analytics and generate printable PDF reports filtered by month and cuisine type.</p>
+
+                    <!-- PDF Report Generator -->
+                    <div class="card mb-4" style="padding:1.5rem; border-color: rgba(212,175,55,0.3);">
+                        <h3 class="mb-3" style="color:var(--accent-gold-light);">📄 Generate PDF Report</h3>
+                        <div style="display:flex; gap:1rem; flex-wrap:wrap; align-items:flex-end;">
+                            <div class="filter-group">
+                                <label>Report Month</label>
+                                <select id="rpt_month" class="form-control" style="min-width:160px;">
+                                    <option value="">All Months</option>
+                                    <?php foreach ($report_months as $ym): ?>
+                                        <option value="<?php echo $ym; ?>"><?php echo date('F Y', strtotime($ym . '-01')); ?></option>
+                                    <?php endforeach; ?>
+                                </select>
+                            </div>
+                            <div class="filter-group">
+                                <label>Cuisine Type</label>
+                                <select id="rpt_cuisine" class="form-control" style="min-width:160px;">
+                                    <option value="">All Cuisines</option>
+                                    <option value="Haute">Haute Cuisine</option>
+                                    <option value="Vegetarian">Vegetarian Cuisine</option>
+                                    <option value="Fusion">Fusion Cuisine</option>
+                                    <option value="Novella">Novella Cuisine</option>
+                                </select>
+                            </div>
+                            <div class="filter-group">
+                                <label>Booking Status</label>
+                                <select id="rpt_status" class="form-control" style="min-width:140px;">
+                                    <option value="">All Statuses</option>
+                                    <option value="Confirmed">Confirmed</option>
+                                    <option value="Cancelled">Cancelled</option>
+                                </select>
+                            </div>
+                            <button class="btn btn-primary" onclick="generatePDFReport()" style="white-space:nowrap;">
+                                📄 Generate & Print PDF
+                            </button>
+                        </div>
+                        <p class="text-dim mt-2" style="font-size:0.8rem;">
+                            Opens a print-ready report page in a new tab. Use your browser's Print dialog (Ctrl+P) and select "Save as PDF".
+                        </p>
+                    </div>
 
                     <div class="reports-grid">
                         <!-- Chart 1: Cuisine popularity -->
@@ -1178,6 +1663,10 @@ $all_questions = $pdo->query("SELECT * FROM questions ORDER BY id")->fetchAll();
         document.getElementById('f_class_type').value = data.cuisine_type;
         document.getElementById('f_class_chef').value = data.instructor;
         
+        // Set instructor dropdown if linked
+        const instSel = document.getElementById('f_class_inst_id');
+        if (instSel) instSel.value = data.instructor_id || '';
+        
         // Convert datetime string (YYYY-MM-DD HH:MM:SS) to YYYY-MM-DDTHH:MM local format
         const dateObj = new Date(data.schedule);
         const tzOffset = dateObj.getTimezoneOffset() * 60000; // offset in milliseconds
@@ -1188,6 +1677,17 @@ $all_questions = $pdo->query("SELECT * FROM questions ORDER BY id")->fetchAll();
         document.getElementById('f_class_price').value = data.price;
 
         document.getElementById('f_class_name').focus();
+    }
+
+    function syncInstructorName(sel) {
+        const opt = sel.options[sel.selectedIndex];
+        const manualField = document.getElementById('f_class_chef');
+        if (opt && opt.dataset.name) {
+            manualField.value = opt.dataset.name;
+            manualField.required = false;
+        } else {
+            manualField.required = true;
+        }
     }
 
     function resetClassForm() {
@@ -1243,6 +1743,46 @@ $all_questions = $pdo->query("SELECT * FROM questions ORDER BY id")->fetchAll();
         document.getElementById('question-submit-btn').textContent = 'Save Question';
         document.getElementById('question-submit-btn').className = 'btn btn-primary';
         document.getElementById('question-form').reset();
+    }
+
+    // --- INSTRUCTOR FORM FUNCTIONS ---
+    function populateEditInstructor(data) {
+        document.getElementById('inst-form-action').value = 'edit_instructor';
+        document.getElementById('form-inst-id').value = data.id;
+        document.getElementById('inst-form-title').textContent = 'Edit Instructor (' + data.id + ')';
+        document.getElementById('inst-submit-btn').textContent = 'Update Instructor';
+        document.getElementById('inst-submit-btn').className = 'btn btn-gold-outline';
+
+        document.getElementById('f_inst_name').value = data.name;
+        document.getElementById('f_inst_email').value = data.email;
+        document.getElementById('f_inst_phone').value = data.phone;
+        document.getElementById('f_inst_specialty').value = data.specialty;
+        document.getElementById('f_inst_bio').value = data.bio || '';
+        document.getElementById('f_inst_status').value = data.status;
+
+        document.getElementById('f_inst_name').focus();
+        document.getElementById('section-instructors').scrollIntoView({behavior:'smooth', block:'start'});
+    }
+
+    function resetInstructorForm() {
+        document.getElementById('inst-form-action').value = 'add_instructor';
+        document.getElementById('form-inst-id').value = '';
+        document.getElementById('inst-form-title').textContent = 'Register New Instructor';
+        document.getElementById('inst-submit-btn').textContent = 'Register Instructor';
+        document.getElementById('inst-submit-btn').className = 'btn btn-primary';
+        document.getElementById('inst-form').reset();
+    }
+
+    // --- PDF REPORT GENERATOR ---
+    function generatePDFReport() {
+        const month = document.getElementById('rpt_month').value;
+        const cuisine = document.getElementById('rpt_cuisine').value;
+        const status = document.getElementById('rpt_status').value;
+        let url = 'report-pdf.php?';
+        if (month) url += 'month=' + encodeURIComponent(month) + '&';
+        if (cuisine) url += 'cuisine_type=' + encodeURIComponent(cuisine) + '&';
+        if (status) url += 'status=' + encodeURIComponent(status);
+        window.open(url, '_blank');
     }
 
     // Reload active tab on page refresh

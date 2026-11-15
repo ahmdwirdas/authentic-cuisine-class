@@ -194,7 +194,7 @@ $stmt->execute($params);
 $available_classes = $stmt->fetchAll();
 
 // Load Customer Bookings (all)
-$stmt = $pdo->prepare("SELECT b.id as booking_id, b.booking_date, b.status, c.id as class_id, c.name as class_name, c.cuisine_type, c.instructor, c.schedule, c.price, br.name as branch_name 
+$stmt = $pdo->prepare("SELECT b.id as booking_id, b.booking_date, b.status, b.payment_status, c.id as class_id, c.name as class_name, c.cuisine_type, c.instructor, c.schedule, c.price, br.name as branch_name 
                        FROM bookings b 
                        JOIN cuisineclasses c ON b.class_id = c.id 
                        JOIN branches br ON c.branch_id = br.id 
@@ -300,6 +300,11 @@ $questions = $pdo->query("SELECT * FROM questions ORDER BY id")->fetchAll();
                         </li>
                         <li class="sidebar-nav-link" onclick="switchSection('surveys', this)">
                             <span>✍️</span> Feedback Center
+                        </li>
+                        <li class="sidebar-nav-link" style="margin-top:0.5rem;">
+                            <a href="payment.php" style="display:flex; align-items:center; gap:0.5rem; color:inherit; text-decoration:none; width:100%;">
+                                <span>💳</span> Make a Payment
+                            </a>
                         </li>
                     </ul>
                 </div>
@@ -424,6 +429,7 @@ $questions = $pdo->query("SELECT * FROM questions ORDER BY id")->fetchAll();
                                         <th>Date & Time</th>
                                         <th>Price</th>
                                         <th>Status</th>
+                                        <th>Payment</th>
                                         <th class="text-right">Actions</th>
                                     </tr>
                                 </thead>
@@ -448,12 +454,22 @@ $questions = $pdo->query("SELECT * FROM questions ORDER BY id")->fetchAll();
                                                     <?php echo $bk['status']; ?>
                                                 </span>
                                             </td>
-                                            <td class="text-right">
+                                            <td>
+                                                <?php $pStatus = $bk['payment_status'] ?? 'Unpaid'; ?>
+                                                <span class="badge badge-<?php echo $pStatus === 'Paid' ? 'success' : 'warning'; ?>" style="font-size:0.7rem;">
+                                                    <?php echo $pStatus; ?>
+                                                </span>
+                                            </td>
+                                            <td class="text-right" style="white-space:nowrap;">
                                                 <?php if ($bk['status'] === 'Confirmed'): ?>
+                                                    <?php if (($bk['payment_status'] ?? 'Unpaid') === 'Unpaid'): ?>
+                                                        <a href="payment.php?booking_id=<?php echo urlencode($bk['booking_id']); ?>"
+                                                           class="btn btn-primary btn-sm" style="margin-right:0.25rem;">💳 Pay</a>
+                                                    <?php endif; ?>
                                                     <form method="POST" action="customer-dashboard.php" style="display:inline-block;" onsubmit="return confirm('Are you sure you want to cancel booking for: <?php echo addslashes($bk['class_name']); ?>?');">
                                                         <input type="hidden" name="action" value="cancel">
                                                         <input type="hidden" name="booking_id" value="<?php echo $bk['booking_id']; ?>">
-                                                        <button type="submit" class="btn btn-danger btn-sm">Cancel Booking</button>
+                                                        <button type="submit" class="btn btn-danger btn-sm">Cancel</button>
                                                     </form>
                                                 <?php else: ?>
                                                     <span class="text-dim" style="font-size: 0.85rem;">No actions</span>
