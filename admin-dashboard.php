@@ -1317,10 +1317,9 @@ $all_questions = $pdo->query("SELECT * FROM questions ORDER BY id")->fetchAll();
                                             <input type="text" name="instructor" id="f_class_chef" class="form-control" placeholder="e.g. Chef Marcus">
                                         </div>
                                     </div>
-                                        <div class="form-group">
-                                            <label for="f_class_sched">Schedule (Date & Time)</label>
-                                            <input type="datetime-local" name="schedule" id="f_class_sched" class="form-control" required>
-                                        </div>
+                                    <div class="form-group">
+                                        <label for="f_class_sched">Schedule (Date & Time)</label>
+                                        <input type="datetime-local" name="schedule" id="f_class_sched" class="form-control" required>
                                     </div>
                                     <div class="form-grid">
                                         <div class="form-group">
