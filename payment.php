@@ -1,7 +1,7 @@
 <?php
 // payment.php - Customer Payment Page
 require_once __DIR__ . '/auth.php';
-require_customer();
+require_login();
 date_default_timezone_set('Asia/Kuala_Lumpur');
 
 $customer_id = $_SESSION['customer_id'];

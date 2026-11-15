@@ -1584,28 +1584,30 @@ $all_questions = $pdo->query("SELECT * FROM questions ORDER BY id")->fetchAll();
                                 <?php endforeach; ?>
                             </div>
                         </div>
-                    </div>
 
-                    <!-- Chart 3: Satisfaction Ratings per branch -->
-                    <div class="card" style="margin-top:2rem;">
-                        <h3 class="mb-2">Average Branch Customer Review Metrics</h3>
-                        <p class="text-dim mb-4" style="font-size:0.85rem;">Comparison of customer survey scores (1.0 - 5.0 scale) per location.</p>
-                        
-                        <div class="bar-chart-container" style="height: 180px;">
-                            <?php foreach ($branch_stats as $bs): ?>
-                                <?php 
-                                    $score = $bs['avg_score'] ? round((float)$bs['avg_score'], 2) : 0.00;
-                                    // Scale score out of 5.0
-                                    $height_pct = round(($score / 5.0) * 100);
-                                    if ($height_pct < 10 && $score > 0) $height_pct = 10;
-                                ?>
-                                <div class="chart-bar-wrap">
-                                    <div class="chart-bar" style="height: <?php echo $height_pct; ?>%; background: linear-gradient(to top, #10b981, #34d399); width:50px;">
-                                        <span class="chart-bar-value" style="top:-24px; font-size:0.8rem;"><?php echo $score > 0 ? number_format($score, 2) : 'No reviews'; ?></span>
+                        <!-- Chart 3: Satisfaction Ratings per branch -->
+                        <div class="chart-card">
+                            <div class="chart-header">
+                                <h3 style="font-size:1.1rem; color:var(--text-primary);">Avg Branch Review Score</h3>
+                                <span class="text-dim" style="font-size:0.75rem;">Survey scores (1.0 – 5.0 scale) per location</span>
+                            </div>
+                            <div class="bar-chart-container">
+                                <?php foreach ($branch_stats as $bs): ?>
+                                    <?php 
+                                        $score = $bs['avg_score'] ? round((float)$bs['avg_score'], 2) : 0.00;
+                                        $height_pct = $score > 0 ? round(($score / 5.0) * 100) : 8;
+                                        if ($score > 0 && $height_pct < 10) $height_pct = 10;
+                                    ?>
+                                    <div class="chart-bar-wrap">
+                                        <div class="chart-bar" style="height: <?php echo $height_pct; ?>%; background: linear-gradient(to top, #10b981, #34d399);">
+                                            <span class="chart-bar-value" style="top:-24px; font-size:0.75rem;"><?php echo $score > 0 ? number_format($score, 2) : '-'; ?></span>
+                                        </div>
+                                        <span class="chart-bar-label" title="<?php echo htmlspecialchars($bs['name']); ?>">
+                                            <?php echo htmlspecialchars(explode(' ', $bs['name'])[0]); ?>
+                                        </span>
                                     </div>
-                                    <span class="chart-bar-label" style="max-width:120px; font-weight:600;"><?php echo htmlspecialchars($bs['name']); ?></span>
-                                </div>
-                            <?php endforeach; ?>
+                                <?php endforeach; ?>
+                            </div>
                         </div>
                     </div>
                 </section>
